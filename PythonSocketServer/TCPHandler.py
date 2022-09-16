@@ -5,26 +5,30 @@ import sys
 from _thread import *
 import threading
 
+
 print_lock = threading.Lock()
 # Host for hosting Python UDP
 
 class TCPHandler(object):
     
     """description of class"""
-    def __init__(self, host, port):
+    def __init__(self, host, port, RecieveMsgEvent, PlayerConnectedEvent, TickEvent):
         self.HOST = host
         self.PORT = port
-        self.OnConnectedEvents = []
+        self.OnRecieveMessageEvent = RecieveMsgEvent
+        self.OnPlayerConnected = PlayerConnectedEvent
+        self.OnUpdate = TickEvent
 
     def On_Client_Connected(self, clientConn, addr):
-        print("User connected", str(clientConn))
-        while True:
-
+        
+        self.OnPlayerConnected(clientConn)
+        
+        while True:        
             # data recieved from client
             try:
                 msg = clientConn.recv(1024)
             except:
-                continue;
+                continue
 
             # do some checks and if msg == someWeirdSignal: break:
             if not msg:
@@ -34,22 +38,18 @@ class TCPHandler(object):
 
             decodeMsg = (msg.decode('UTF-8')).split()
 
-            if decodeMsg[0] == 'LOGIN':
-                # we can either invoke OnLogin event
-                # or we can just send message here:
-                clientConn.send("Welcome".encode('UTF-8'))
-                print("Got Login Message from user!")
-                print_lock.release()
-                continue
-
-            elif decodeMsg[0] == '':
+            if decodeMsg[0] == '':
                 print("Invalid Message, Disconnect User")
                 print_lock.release()
                 break
+            else:
+                self.OnRecieveMessageEvent(msg.decode('UTF-8'), clientConn)
 
         # we will never run into this until while true is done, only end of program.
         clientConn.close()
 
+    def SendMsg(self, clientConn, message):        
+        clientConn.send(message.encode('UTF-8'))
 
     def StartHostServer(self):
         # Create UDP socket
