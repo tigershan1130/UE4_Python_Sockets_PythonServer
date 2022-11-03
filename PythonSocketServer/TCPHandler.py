@@ -12,12 +12,13 @@ print_lock = threading.Lock()
 class TCPHandler(object):
     
     """description of class"""
-    def __init__(self, host, port, RecieveMsgEvent, PlayerConnectedEvent, TickEvent):
+    def __init__(self, host, port, RecieveMsgEvent, PlayerConnectedEvent, TickEvent, ClientFailedEvent):
         self.HOST = host
         self.PORT = port
         self.OnRecieveMessageEvent = RecieveMsgEvent
         self.OnPlayerConnected = PlayerConnectedEvent
         self.OnUpdate = TickEvent
+        self.OnClientFailed = ClientFailedEvent
 
     def On_Client_Connected(self, clientConn, addr):
         
@@ -48,8 +49,13 @@ class TCPHandler(object):
         # we will never run into this until while true is done, only end of program.
         clientConn.close()
 
-    def SendMsg(self, clientConn, message):        
-        clientConn.send(message.encode('UTF-8'))
+    def SendMsg(self, clientConn, message):  
+        try:
+            clientConn.send(message.encode('UTF-8'))
+        except socket.error as err:
+            clientConn.close()
+            print("send message to client failed")
+            self.OnClientFailed(clientConn)
 
     def StartHostServer(self):
         # Create UDP socket
@@ -91,8 +97,14 @@ class TCPHandler(object):
 
             # lock acquired by client
             print_lock.acquire()
-            print('Connected to: ', addr[0],':', addr[1])
 
+            # TODO: THis is wrong only accquire new thread when a client is created
+            # we need to only use one thread for this, while pushing into a queue
+            # since this is just a test, it's ok for this
+            # we need to release thread when player disconnect which is not been done here.
+            print('Connected to: ', addr[0],':', addr[1])
+            
             start_new_thread(self.On_Client_Connected, (conn, addr,))
+            print_lock.release()
 
         socketServer.close()
